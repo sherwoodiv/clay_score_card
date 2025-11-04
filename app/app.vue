@@ -63,7 +63,7 @@
                 :class="['shot-toggle', { hit: shot, miss: !shot }]"
                 @click="toggleShot(sindex, currentView, shotIndex)"
               >
-                {{ shot ? 'Hit' : 'Miss' }}
+                {{ shot ? 'O' : 'X' }}
               </button>
             </div>
             <div class="score">Score: {{ getRoundScore(shooter, currentView) }} / {{ rounds[currentView].numShots }}</div>
@@ -75,7 +75,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 
 const targetShots = 50;
 const newShooterName = ref('');
@@ -150,6 +150,23 @@ const getRoundScore = (shooter, roundIndex) => {
 const getTotalScore = (shooter) => {
   return shooter.roundScores.reduce((sum, rs, rindex) => sum + getRoundScore(shooter, rindex), 0);
 };
+
+onMounted(() => {
+  const saved = localStorage.getItem('shootingData');
+  if (saved) {
+    if (confirm('Resume previous session? Click OK to resume or Cancel to reset.')) {
+      const data = JSON.parse(saved);
+      rounds.value = data.rounds;
+      shooters.value = data.shooters;
+    } else {
+      localStorage.removeItem('shootingData');
+    }
+  }
+});
+
+watch([shooters, rounds], () => {
+  localStorage.setItem('shootingData', JSON.stringify({ shooters: shooters.value, rounds: rounds.value }));
+}, { deep: true });
 </script>
 
 <style scoped>
@@ -276,8 +293,9 @@ const getTotalScore = (shooter) => {
   border: none;
   border-radius: 5px;
   cursor: pointer;
-  min-width: 60px;
-  font-size: 14px;
+  min-width: 50px;
+  font-size: 18px;
+  font-weight: bold;
   transition: background-color 0.3s;
 }
 
