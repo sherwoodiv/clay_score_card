@@ -8,5 +8,9 @@ export default defineNuxtConfig({
     '@nuxt/eslint',
     '@nuxt/image',
     '@nuxt/ui'
-  ]
+  ],
+  nitro: {
+    preset: 'static',             // generates a fully static site in .output/public
+    output: { publicDir: 'dist' } // optional – makes the folder name nicer
+  }
 })
