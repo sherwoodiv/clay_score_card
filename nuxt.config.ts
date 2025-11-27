@@ -5,7 +5,7 @@ export default defineNuxtConfig({
 
   app: {
     baseURL: '/clay_score_card/',   // Important!
-    buildAssetsDir: '_nuxt/'
+    buildAssetsDir: '/clay_score_card/_nuxt/'
   },
   modules: ['@nuxt/ui'],
   experimental: {
