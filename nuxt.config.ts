@@ -9,4 +9,7 @@ export default defineNuxtConfig({
   },
   css: ['@nuxt/ui/dist/ui.css'],
   modules: ['@nuxt/ui'],
+  experimental: {
+    payloadExtraction: false   // <-- REQUIRED FOR GITHUB PAGES
+  }
 })
