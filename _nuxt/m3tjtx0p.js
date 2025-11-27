@@ -1,0 +1,1 @@
+import{r as n}from"./BqGTGYtt.js";import a from"./d_903Gzw.js";import{D as s,f as e,o as t,w as i,i as c}from"./DwUPif7m.js";const l={__name:"ProseWarning",setup(p){const o=s();return(r,f)=>(t(),e(a,{color:"warning",icon:c(o).ui.icons.warning},{default:i(()=>[n(r.$slots,"default",{mdcUnwrap:"p"})]),_:3},8,["icon"]))}};export{l as default};
