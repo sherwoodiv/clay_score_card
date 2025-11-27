@@ -1,5 +1,7 @@
 <!-- app.vue -->
 <template>
+
+
   <UContainer>
   <!-- Resume Modal – appears only when there's saved data -->
   <UModal v-if="showResumeModal" v-model="showResumeModal" prevent-close>
