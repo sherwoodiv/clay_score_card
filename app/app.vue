@@ -1,18 +1,5 @@
 <!-- app.vue -->
 <template>
-  <UModal v-model="showResumeModal">
-    <UCard>
-      <template #header>
-        <h3>Resume Previous Session?</h3>
-      </template>
-      <p>Do you want to resume the previous scoring session or start a new one?</p>
-      <template #footer>
-        <UButton @click="resume" color="primary">Resume</UButton>
-        <UButton @click="reset" color="gray">Reset</UButton>
-      </template>
-    </UCard>
-  </UModal>
-
   <div class="container">
     <h1>Clay Shooting Score Tracker</h1>
     
@@ -35,13 +22,10 @@
       
       <div v-if="showAddRound && remaining > 0" class="add-round">
         <label>Add Round ({{ remaining }} shots left):</label>
-        <button
-          v-for="opt in availableOptions"
-          :key="opt"
-          @click="addRound(opt)"
-        >
-          {{ opt }}
-        </button>
+        <select v-model="newNumShots">
+          <option v-for="opt in availableOptions" :key="opt" :value="opt">{{ opt }}</option>
+        </select>
+        <button @click="addRound" :disabled="!newNumShots">Add</button>
       </div>
       
       <div v-if="currentTotal !== 50" class="warning">Total shots: {{ currentTotal }} / 50. Add more rounds if needed.</div>
@@ -99,15 +83,14 @@ const shooters = ref([]);
 const rounds = ref([]);
 const currentView = ref(-1);
 const showAddRound = ref(false);
-const showResumeModal = ref(false);
-const tempSaved = ref(null);
+const newNumShots = ref(null);
 
 const currentTotal = computed(() => rounds.value.reduce((sum, r) => sum + r.numShots, 0));
 const remaining = computed(() => targetShots - currentTotal.value);
 
 const availableOptions = computed(() => {
   if (remaining.value <= 0) return [];
-  const min = remaining.value < 4 ? remaining.value : 4;
+  const min = remaining.value < 4 ? 1 : 4;
   const max = Math.min(6, remaining.value);
   return Array.from({ length: max - min + 1 }, (_, i) => max - i); // descending
 });
@@ -122,13 +105,13 @@ const addShooter = () => {
   }
 };
 
-const addRound = (numShots) => {
-  if (numShots && numShots <= remaining.value) {
-    rounds.value.push({ numShots });
+const addRound = () => {
+  if (newNumShots.value && newNumShots.value <= remaining.value) {
+    rounds.value.push({ numShots: newNumShots.value });
     shooters.value.forEach(s => {
-      s.roundScores.push({ shots: Array(numShots).fill(false) });
+      s.roundScores.push({ shots: Array(newNumShots.value).fill(false) });
     });
-    currentView.value = rounds.value.length - 1;
+    newNumShots.value = null;
     showAddRound.value = false;
   }
 };
@@ -153,7 +136,6 @@ const autoSetup = () => {
   shooters.value.forEach(s => {
     s.roundScores = rounds.value.map(r => ({ shots: Array(r.numShots).fill(false) }));
   });
-  currentView.value = 0; // Start at first round after auto setup
 };
 
 const toggleShot = (shooterIndex, roundIndex, shotIndex) => {
@@ -169,26 +151,16 @@ const getTotalScore = (shooter) => {
   return shooter.roundScores.reduce((sum, rs, rindex) => sum + getRoundScore(shooter, rindex), 0);
 };
 
-const resume = () => {
-  if (tempSaved.value) {
-    rounds.value = tempSaved.value.rounds;
-    shooters.value = tempSaved.value.shooters;
-  }
-  showResumeModal.value = false;
-  tempSaved.value = null;
-};
-
-const reset = () => {
-  localStorage.removeItem('shootingData');
-  showResumeModal.value = false;
-  tempSaved.value = null;
-};
-
 onMounted(() => {
   const saved = localStorage.getItem('shootingData');
   if (saved) {
-    tempSaved.value = JSON.parse(saved);
-    showResumeModal.value = true;
+    if (confirm('Resume previous session? Click OK to resume or Cancel to reset.')) {
+      const data = JSON.parse(saved);
+      rounds.value = data.rounds;
+      shooters.value = data.shooters;
+    } else {
+      localStorage.removeItem('shootingData');
+    }
   }
 });
 
@@ -261,9 +233,13 @@ watch([shooters, rounds], () => {
   margin-right: 10px;
 }
 
+.add-round select {
+  padding: 10px;
+  margin-right: 10px;
+}
+
 .add-round button {
   padding: 10px 20px;
-  margin-right: 5px;
 }
 
 .warning {
