@@ -1,7 +1,8 @@
 <!-- app.vue -->
 <template>
+  <UContainer>
   <!-- Resume Modal – appears only when there's saved data -->
-  <UModal v-model="showResumeModal" prevent-close>
+  <UModal v-if="showResumeModal" v-model="showResumeModal" prevent-close>
     <UCard class="w-full max-w-md">
       <template #header>
         <h3 class="text-lg font-semibold">Resume Previous Session?</h3>
@@ -113,6 +114,7 @@
       </div>
     </div>
   </div>
+ </UContainer>
 </template>
 
 <script setup>
