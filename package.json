@@ -8,8 +8,8 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
-    "deploy": "npx nuxt-build && gh-pages -d dist",
-    "deploy:force": "npx nuxt-build && gh-pages -d dist -t true"
+    "deploy": "nuxi generate && gh-pages -d .output/public",
+    "deploy:force": "nuxi generate && gh-pages -d .output/public -t true"
   },
   "dependencies": {
     "@nuxt/content": "^3.8.0",
