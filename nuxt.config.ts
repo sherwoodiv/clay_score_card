@@ -2,7 +2,9 @@
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
-
+app: {
+    baseURL: '/clay_score_card/',   // Important!
+  },
   modules: [
     '@nuxt/content',
     '@nuxt/eslint',
