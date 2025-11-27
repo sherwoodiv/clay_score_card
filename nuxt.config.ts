@@ -7,7 +7,6 @@ export default defineNuxtConfig({
     baseURL: '/clay_score_card/',   // Important!
     buildAssetsDir: '_nuxt/'
   },
-  css: ['@nuxt/ui/dist/ui.css'],
   modules: ['@nuxt/ui'],
   experimental: {
     payloadExtraction: false   // <-- REQUIRED FOR GITHUB PAGES
