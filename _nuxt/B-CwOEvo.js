@@ -1,0 +1,1 @@
+import{r as a}from"./eBMmc4fd.js";import t from"./DZeNeAra.js";import{f as e,i as n,o as s,w as c,v as i}from"./C84G-s-j.js";const l={__name:"ProseCaution",setup(p){const o=e();return(r,f)=>(s(),n(t,{color:"error",icon:i(o).ui.icons.caution},{default:c(()=>[a(r.$slots,"default",{mdcUnwrap:"p"})]),_:3},8,["icon"]))}};export{l as default};
