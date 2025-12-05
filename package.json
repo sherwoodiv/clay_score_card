@@ -11,6 +11,7 @@
     "deploy": "nuxi generate && gh-pages -d dist",
     "deploy:force": "nuxi generate && gh-pages -d dist -t true",
     "lint": "eslint .",
+    "lint-fix": "eslint --fix .",
     "typecheck": "nuxt typecheck"
   },
   "dependencies": {
