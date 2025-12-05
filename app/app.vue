@@ -171,7 +171,7 @@ watch([shooters, rounds], () => {
               <!-- Round Tabs -->
               <div class="round-tabs">
                 <UButton
-                    :variant="currentView === -1 ? 'solid':'subtle'"
+                  :variant="currentView === -1 ? 'solid':'subtle'"
                   @click="currentView = -1"
                 >
                   Summary
@@ -186,6 +186,7 @@ watch([shooters, rounds], () => {
                 </UButton>
                 <UButton
                   v-if="remaining > 0"
+                  class="w-10 place-content-center"
                   @click="showAddRound = !showAddRound"
                 >
                   +
@@ -214,8 +215,6 @@ watch([shooters, rounds], () => {
                 Total shots: {{ currentTotal }} / 50
               </div>
 
-              <!-- Summary View -->
-              <!-- Summary View -->
               <!-- Summary View - MOBILE-FIRST CARD LAYOUT -->
               <div
                 v-if="currentView === -1"
@@ -243,7 +242,9 @@ watch([shooters, rounds], () => {
                     class="shooter-summary-card bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700"
                   >
                     <!-- Header: Name + Total Score -->
-                    <div class="bg-gradient-to-r from-blue-600 to-blue-700 dark:from-blue-800 dark:to-blue-900 text-white p-4">
+                    <div
+                      class="bg-gradient-to-r from-blue-600 to-blue-700 dark:from-blue-800 dark:to-blue-900 text-white p-4"
+                    >
                       <div class="flex justify-between items-center">
                         <h3 class="text-xl font-bold">
                           {{ shooter.name }}
@@ -317,6 +318,14 @@ watch([shooters, rounds], () => {
                   <div class="score">
                     {{ getRoundScore(shooter, currentView) }} / {{ rounds[currentView].numShots }}
                   </div>
+                </div>
+                <div>
+                  <UButton
+                    v-if="currentView+1 < rounds.length"
+                    @click="currentView = currentView +1"
+                  >
+                    Next Round
+                  </UButton>
                 </div>
               </div>
             </div>
