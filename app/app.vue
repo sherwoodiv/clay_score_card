@@ -103,6 +103,7 @@ watch([shooters, rounds], () => {
           v-model:open="showResumeModal"
           :dismissible="false"
           title="Resume Session"
+          size="sm"
         >
           <template #body>
             <h3 class="text-2xl">
