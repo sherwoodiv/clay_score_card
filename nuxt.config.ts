@@ -1,13 +1,28 @@
+// https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
-  ssr: false,
-  nitro: { preset: 'static' },
+  modules: [
+    '@nuxt/eslint',
+    '@nuxt/ui'
+  ],
 
-  app: {
-    baseURL: '/clay_score_card/',   // Important!
-    buildAssetsDir: '/clay_score_card/_nuxt/'
+  devtools: {
+    enabled: true
   },
-  modules: ['@nuxt/ui'],
-  experimental: {
-    payloadExtraction: false   // <-- REQUIRED FOR GITHUB PAGES
+
+  css: ['~/assets/css/main.css'],
+
+  routeRules: {
+    '/': { prerender: true }
+  },
+
+  compatibilityDate: '2025-01-15',
+
+  eslint: {
+    config: {
+      stylistic: {
+        commaDangle: 'never',
+        braceStyle: '1tbs'
+      }
+    }
   }
 })
