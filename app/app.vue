@@ -1,103 +1,143 @@
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue'
-import { debounce } from 'lodash-es' // npm i lodash-es
+import { ref, computed, watch, nextTick, onMounted, shallowRef } from 'vue'
+import { debounce } from 'lodash-es'
 
 const targetShots = 50
 const newShooterName = ref('')
-const shooters = ref([])
-const rounds = ref([])
+const shooters = shallowRef([]) // shallowRef = way faster
+const rounds = shallowRef([])
 const currentView = ref(-1)
 const showAddRound = ref(false)
 const showResumeModal = ref(false)
 const savedData = ref(null)
 
-// These stay the same
 const currentTotal = computed(() => rounds.value.reduce((s, r) => s + r.numShots, 0))
 const remaining = computed(() => targetShots - currentTotal.value)
 
-// SUPER FAST toggle — no more deep reactivity cost
+// ⚡ OPTIMIZED: Direct mutation + manual trigger
 const toggleShot = (shooter, roundIdx, shotIdx) => {
-  // Direct mutation — Vue still tracks it because it's a ref array
-  const current = shooter.roundScores[roundIdx].shots[shotIdx]
-  shooter.roundScores[roundIdx].shots[shotIdx] = !current
+  shooter.roundScores[roundIdx].shots[shotIdx] = !shooter.roundScores[roundIdx].shots[shotIdx]
 
-  // Force immediate UI update (feels instant)
-  // Vue batches updates, so we trigger a microtask
-  nextTick()
+  // Bust cache by incrementing version
+  scoreCacheVersion.value++
+
+  // Force shallow update (shallowRef needs this)
+  shooters.value = [...shooters.value]
 }
 
-// Cached scores — computed per shooter (huge perf win)
-const shooterScores = computed(() => {
-  return shooters.value.map((shooter) => {
-    const roundScores = shooter.roundScores.map(rs =>
-      rs.shots.filter(Boolean).length
-    )
-    const total = roundScores.reduce((a, b) => a + b, 0)
-    return { roundScores, total }
-  })
-})
+// ⚡ OPTIMIZED: Memoized per round per shooter
+const scoreCache = new Map()
+const scoreCacheVersion = ref(0) // Version counter for cache busting
+const getScoreKey = (shooterName, roundIdx) => `${shooterName}-${roundIdx}-${scoreCacheVersion.value}`
 
 const getRoundScore = (shooter, roundIdx) => {
-  const index = shooters.value.indexOf(shooter)
-  return shooterScores.value[index]?.roundScores[roundIdx] ?? 0
+  const key = getScoreKey(shooter.name, roundIdx)
+
+  // Check cache first
+  if (scoreCache.has(key)) {
+    return scoreCache.get(key)
+  }
+
+  // Recalculate
+  const shots = shooter.roundScores[roundIdx].shots
+  const score = shots.filter(Boolean).length
+  scoreCache.set(key, score)
+  return score
 }
 
 const getTotalScore = (shooter) => {
-  const index = shooters.value.indexOf(shooter)
-  return shooterScores.value[index]?.total ?? 0
+  let total = 0
+  for (let i = 0; i < rounds.value.length; i++) {
+    total += getRoundScore(shooter, i)
+  }
+  return total
 }
 
-// Debounced save — only runs after user stops tapping
-watch(
-  [shooters, rounds],
-  debounce(() => {
+// Clear cache when rounds/shooters change structure
+const clearScoreCache = () => scoreCache.clear()
+
+// ⚡ OPTIMIZED: Single debounced save (removed duplicate)
+const saveToStorage = debounce(() => {
+  try {
     localStorage.setItem('shootingData', JSON.stringify({
       shooters: shooters.value,
       rounds: rounds.value
     }))
-  }, 400),
-  { deep: true }
-)
+  } catch (e) {
+    console.error('Save failed:', e)
+  }
+}, 500) // Increased to 500ms for better mobile perf
+
+watch([shooters, rounds], saveToStorage)
 
 const addShooter = () => {
   if (shooters.value.length >= 8 || !newShooterName.value.trim()) return
-  shooters.value.push({
+
+  const newShooter = {
     name: newShooterName.value.trim(),
     roundScores: rounds.value.map(r => ({ shots: Array(r.numShots).fill(false) }))
-  })
+  }
+
+  shooters.value = [...shooters.value, newShooter]
   newShooterName.value = ''
+  clearScoreCache()
 }
 
 const addRound = (num) => {
-  rounds.value.push({ numShots: num })
-  shooters.value.forEach(s => s.roundScores.push({ shots: Array(num).fill(false) }))
+  rounds.value = [...rounds.value, { numShots: num }]
+
+  shooters.value = shooters.value.map(s => ({
+    ...s,
+    roundScores: [...s.roundScores, { shots: Array(num).fill(false) }]
+  }))
+
   currentView.value = rounds.value.length - 1
   showAddRound.value = false
+  clearScoreCache()
 }
+
+const availableOptions = computed(() => {
+  const r = remaining.value
+  const options = [4, 5, 6].filter(n => n <= r)
+
+  // Add remaining shots option only if it's not already in the list and is > 0
+  if (r > 0 && r < 4) {
+    options.push(r)
+  }
+  return options
+})
 
 const autoSetup = () => {
   if (rounds.value.length) return
+
   const config = []
   let total = 0
+
   ;[4, 5].forEach((n) => {
     if (total + n <= 50) {
       config.push(n)
       total += n
     }
   })
+
   while (total + 6 <= 50) {
     config.push(6)
     total += 6
   }
+
   if (total < 50) config.push(50 - total)
+
   rounds.value = config.map(n => ({ numShots: n }))
-  shooters.value.forEach((s) => {
-    s.roundScores = rounds.value.map(r => ({ shots: Array(r.numShots).fill(false) }))
-  })
+
+  shooters.value = shooters.value.map(s => ({
+    ...s,
+    roundScores: rounds.value.map(r => ({ shots: Array(r.numShots).fill(false) }))
+  }))
+
   currentView.value = 0
+  clearScoreCache()
 }
 
-// Modal functions
 const resumeSession = () => {
   if (savedData.value) {
     rounds.value = savedData.value.rounds
@@ -111,31 +151,32 @@ const startNew = () => {
   localStorage.removeItem('shootingData')
   showResumeModal.value = false
   savedData.value = null
+  clearScoreCache()
 }
 
 onMounted(() => {
   const data = localStorage.getItem('shootingData')
   if (data) {
-    savedData.value = JSON.parse(data)
-    showResumeModal.value = true
+    try {
+      savedData.value = JSON.parse(data)
+      showResumeModal.value = true
+    } catch (e) {
+      console.error('Failed to parse saved data:', e)
+      localStorage.removeItem('shootingData')
+    }
   }
 })
-
-watch([shooters, rounds], () => {
-  localStorage.setItem('shootingData', JSON.stringify({ shooters: shooters.value, rounds: rounds.value }))
-}, { deep: true })
 </script>
 
 <template>
   <UApp>
     <NuxtPage>
       <UContainer>
-        <!-- Resume Modal – appears only when there's saved data -->
         <UModal
-          v-model:open="showResumeModal"
-          :dismissible="false"
-          title="Resume Session"
-          size="sm"
+            v-model:open="showResumeModal"
+            :dismissible="false"
+            title="Resume Session"
+            size="sm"
         >
           <template #body>
             <h3 class="text-2xl">
@@ -146,117 +187,115 @@ watch([shooters, rounds], () => {
             </p>
             <div class="flex gap-3 justify-end">
               <UButton
-                color="warning"
-                @click="startNew"
+                  color="warning"
+                  @click="startNew"
               >
                 Start New
               </UButton>
               <UButton
-                color="primary"
-                @click="resumeSession"
+                  color="primary"
+                  @click="resumeSession"
               >
                 Resume
               </UButton>
             </div>
           </template>
         </UModal>
+
         <UCard>
-          <!-- Main App -->
           <div class="container">
             <h1 class="text-3xl pb-4">
               Clay Shooting Score Tracker
             </h1>
+
             <div
-              v-if="rounds>-1"
-              class="settings"
+                v-if="rounds.length >= 0"
+                class="settings"
             >
               <div class="add-shooter flex flex-box">
                 <UInput
-                  v-model="newShooterName"
-                  placeholder="Enter shooter name"
-                  class="flex-2/3 min-h-1"
+                    v-model="newShooterName"
+                    placeholder="Enter shooter name"
+                    class="flex-2/3 min-h-1"
                 />
                 <UButton
-                  :disabled="shooters.length >= 8 || !newShooterName.trim()"
-                  @click="addShooter"
+                    :disabled="shooters.length >= 8 || !newShooterName.trim()"
+                    @click="addShooter"
                 >
                   Add Shooter
                 </UButton>
               </div>
+
               <UButton
-                v-if="rounds.length === 0"
-                class="auto-setup"
-                @click="autoSetup"
+                  v-if="rounds.length === 0"
+                  class="auto-setup"
+                  @click="autoSetup"
               >
                 Auto Configure Rounds to 50 Shots
               </UButton>
             </div>
 
             <div
-              v-if="shooters.length === 0"
-              class="no-shooters"
+                v-if="shooters.length === 0"
+                class="no-shooters"
             >
               Add up to 8 shooters to start.
             </div>
 
             <div v-else>
-              <!-- Round Tabs -->
               <div class="round-tabs">
                 <UButton
-                  color="info"
-                  :variant="currentView === -1 ? 'solid':'soft'"
-                  @click="currentView = -1"
+                    color="info"
+                    :variant="currentView === -1 ? 'solid':'soft'"
+                    @click="currentView = -1"
                 >
                   Summary
                 </UButton>
                 <UButton
-                  v-for="(round, i) in rounds"
-                  :key="i"
-                  :variant="currentView === i ? 'solid':'subtle'"
-                  @click="currentView = i"
+                    v-for="(round, i) in rounds"
+                    :key="i"
+                    :variant="currentView === i ? 'solid':'subtle'"
+                    @click="currentView = i"
                 >
                   Round {{ i + 1 }}
                 </UButton>
                 <UButton
-                  v-if="remaining > 0"
-                  class="w-10 place-content-center"
-                  @click="showAddRound = !showAddRound"
+                    v-if="remaining > 0"
+                    class="w-10 place-content-center"
+                    @click="showAddRound = !showAddRound"
                 >
                   +
                 </UButton>
               </div>
 
-              <!-- Add Round Buttons -->
               <div
-                v-if="showAddRound && remaining > 0"
-                class="add-round"
+                  v-if="showAddRound && remaining > 0"
+                  class="add-round"
               >
                 <span>Add Round ({{ remaining }} shots left):</span>
                 <UButton
-                  v-for="n in availableOptions"
-                  :key="n"
-                  @click="addRound(n)"
+                    v-for="n in availableOptions"
+                    :key="n"
+                    @click="addRound(n)"
                 >
                   {{ n }}
                 </UButton>
               </div>
 
               <div
-                v-if="currentTotal !== 50"
-                class="warning"
+                  v-if="currentTotal !== 50"
+                  class="warning"
               >
                 Total shots: {{ currentTotal }} / 50
               </div>
 
-              <!-- Summary View - MOBILE-FIRST CARD LAYOUT -->
               <div
-                v-if="currentView === -1"
-                class="summary-view"
+                  v-if="currentView === -1"
+                  class="summary-view"
               >
-                <!-- Top Shooter Badge -->
                 <div
-                  v-if="shooters.length > 1"
-                  class="mt-8 text-center"
+                    v-if="shooters.length > 1"
+                    class="mt-8 text-center"
                 >
                   <div class="inline-block bg-yellow-500 text-white px-6 py-3 rounded-full text-lg font-bold shadow-xl mb-3">
                     Winner: {{ shooters.reduce((a, b) => getTotalScore(a) >= getTotalScore(b) ? a : b).name }}
@@ -267,16 +306,14 @@ watch([shooters, rounds], () => {
                   Summary
                 </h2>
 
-                <!-- Mobile: One shooter card per row -->
                 <div class="space-y-6">
                   <div
-                    v-for="shooter in shooters"
-                    :key="shooter.name"
-                    class="shooter-summary-card bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700"
+                      v-for="shooter in shooters"
+                      :key="shooter.name"
+                      class="shooter-summary-card bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700"
                   >
-                    <!-- Header: Name + Total Score -->
                     <div
-                      class="bg-gradient-to-r from-blue-600 to-blue-700 dark:from-blue-800 dark:to-blue-900 text-white p-4"
+                        class="bg-gradient-to-r from-blue-600 to-blue-700 dark:from-blue-800 dark:to-blue-900 text-white p-4"
                     >
                       <div class="flex justify-between items-center">
                         <h3 class="text-xl font-bold">
@@ -285,27 +322,26 @@ watch([shooters, rounds], () => {
                         <div class="text-2xl font-black">
                           {{ getTotalScore(shooter) }}<span class="text-lg opacity-90">/50</span>
                           <span
-                            v-if="getTotalScore(shooter) === 50"
-                            class="ml-2 text-yellow-300"
+                              v-if="getTotalScore(shooter) === 50"
+                              class="ml-2 text-yellow-300"
                           >Perfect!</span>
                         </div>
                       </div>
                     </div>
 
-                    <!-- Rounds Grid -->
                     <div class="p-4 bg-gray-50 dark:bg-gray-900">
                       <div class="grid grid-cols-4 sm:grid-cols-6 gap-3">
                         <div
-                          v-for="(round, i) in rounds"
-                          :key="i"
-                          class="text-center"
+                            v-for="(round, i) in rounds"
+                            :key="i"
+                            class="text-center"
                         >
                           <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">
                             R{{ i + 1 }}
                           </div>
                           <div
-                            class="font-mono text-lg font-bold rounded-lg px-2 py-1"
-                            :class="{
+                              class="font-mono text-lg font-bold rounded-lg px-2 py-1"
+                              :class="{
                               'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200':
                                 getRoundScore(shooter, i) === round.numShots,
                               'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200':
@@ -323,21 +359,19 @@ watch([shooters, rounds], () => {
                 </div>
               </div>
 
-              <!-- Round View – MOBILE-OPTIMIZED -->
               <div
-                v-else
-                class="round-view mt-6"
+                  v-else
+                  class="round-view mt-6"
               >
                 <h2 class="text-2xl font-bold text-center mb-6">
                   Round {{ currentView + 1 }} ({{ rounds[currentView].numShots }} shots)
                 </h2>
 
                 <div
-                  v-for="shooter in shooters"
-                  :key="shooter.name"
-                  class="shooter-row-mobile"
+                    v-for="shooter in shooters"
+                    :key="shooter.name"
+                    class="shooter-row-mobile"
                 >
-                  <!-- Shooter name + live score -->
                   <div class="shooter-header">
                     <div class="shooter-name">
                       {{ shooter.name }}
@@ -347,26 +381,26 @@ watch([shooters, rounds], () => {
                     </div>
                   </div>
 
-                  <!-- Shot buttons – tight grid -->
                   <div class="shots-grid">
                     <UButton
-                      v-for="(hit, i) in shooter.roundScores[currentView].shots"
-                      :key="i"
-                      :color="hit ? 'primary' : 'warning'"
-                      :variant="hit ? 'solid' : 'soft'"
-                      size="xl"
-                      class="shot-btn flex items-center justify-center"
-                      square
-                      @click="toggleShot(shooter, currentView, i)"
+                        v-for="(hit, i) in shooter.roundScores[currentView].shots"
+                        :key="i"
+                        :color="hit ? 'primary' : 'warning'"
+                        :variant="hit ? 'solid' : 'soft'"
+                        size="xl"
+                        class="shot-btn flex items-center justify-center"
+                        square
+                        @click="toggleShot(shooter, currentView, i)"
                     >
                       <span class="text-3xl font-black leading-none">{{ hit ? 'X' : 'O' }}</span>
                     </UButton>
                   </div>
                 </div>
+
                 <div>
                   <UButton
-                    v-if="currentView+1 < rounds.length"
-                    @click="currentView++"
+                      v-if="currentView + 1 < rounds.length"
+                      @click="currentView++"
                   >
                     Next Round
                   </UButton>
@@ -381,7 +415,6 @@ watch([shooters, rounds], () => {
 </template>
 
 <style scoped>
-/* Your original beautiful styles – unchanged */
 .container {
   max-width: 800px;
   margin: 0 auto;
@@ -460,23 +493,6 @@ watch([shooters, rounds], () => {
   margin-top: 20px;
 }
 
-.summary-table th {
-  background: black;
-  font-weight: 600;
-  padding: 12px 8px;
-}
-
-.summary-table td {
-  padding: 10px 8px;
-}
-
-@media (max-width: 640px) {
-  .summary-table th, .summary-table td {
-    padding: 8px 4px;
-  }
-}
-
-/* ─────── MOBILE-FIRST ROUND VIEW ─────── */
 .round-view {
   padding: 0 8px;
 }
@@ -504,10 +520,9 @@ watch([shooters, rounds], () => {
 .live-score {
   font-size: 1.5rem;
   font-weight: 900;
-  color: #059669; /* emerald-600 */
+  color: #059669;
 }
 
-/* The magic: perfect 6-shot grid on every phone */
 .shots-grid {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
@@ -522,10 +537,9 @@ watch([shooters, rounds], () => {
   border-radius: 16px !important;
   font-size: 28px !important;
   font-weight: 900 !important;
-  min-width: 0 !important; /* crucial for grid */
+  min-width: 0 !important;
 }
 
-/* For 4-shot and 5-shot rounds – center them */
 .shots-grid:has(:nth-child(4):last-child) {
   grid-template-columns: repeat(4, 1fr);
 }
@@ -534,7 +548,6 @@ watch([shooters, rounds], () => {
   grid-template-columns: repeat(5, 1fr);
 }
 
-/* Tablet+ – can go a bit bigger */
 @media (min-width: 640px) {
   .shots-grid {
     gap: 14px;
@@ -544,11 +557,5 @@ watch([shooters, rounds], () => {
   .shot-btn {
     height: 72px !important;
   }
-}
-
-.shooter-name {
-  flex: 0 0 140px;
-  font-weight: bold;
-  font-size: 1.1em;
 }
 </style>
