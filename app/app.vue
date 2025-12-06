@@ -290,42 +290,45 @@ watch([shooters, rounds], () => {
                 </div>
               </div>
 
-              <!-- Round View -->
+              <!-- Round View – MOBILE-OPTIMIZED -->
               <div
                 v-else
-                class="round-view"
+                class="round-view mt-6"
               >
-                <h2>Round {{ currentView + 1 }} ({{ rounds[currentView].numShots }} shots)</h2>
+                <h2 class="text-2xl font-bold text-center mb-6">
+                  Round {{ currentView + 1 }} ({{ rounds[currentView].numShots }} shots)
+                </h2>
+
                 <div
                   v-for="shooter in shooters"
                   :key="shooter.name"
-                  class="shooter-row"
+                  class="shooter-row-mobile"
                 >
-                  <div class="shooter-name">
-                    {{ shooter.name }}
+                  <!-- Shooter name + live score -->
+                  <div class="shooter-header">
+                    <div class="shooter-name">
+                      {{ shooter.name }}
+                    </div>
+                    <div class="live-score">
+                      {{ getRoundScore(shooter, currentView) }} / {{ rounds[currentView].numShots }}
+                    </div>
                   </div>
-                  <div class="shots">
+
+                  <!-- Shot buttons – tight grid -->
+                  <div class="shots-grid">
                     <UButton
                       v-for="(hit, i) in shooter.roundScores[currentView].shots"
                       :key="i"
-                      :class="['shot-toggle', hit ? 'hit' : 'miss']"
-                      :color="hit?'primary':'error'"
+                      :color="hit ? 'primary' : 'error'"
+                      :variant="hit ? 'solid' : 'soft'"
+                      size="xl"
+                      class="shot-btn flex items-center justify-center"
+                      square
                       @click="toggleShot(shooter, currentView, i)"
                     >
-                      {{ hit ? 'O' : 'X' }}
+                      <span class="text-3xl font-black leading-none">{{ hit ? 'O' : 'X' }}</span>
                     </UButton>
                   </div>
-                  <div class="score">
-                    {{ getRoundScore(shooter, currentView) }} / {{ rounds[currentView].numShots }}
-                  </div>
-                </div>
-                <div>
-                  <UButton
-                    v-if="currentView+1 < rounds.length"
-                    @click="currentView = currentView +1"
-                  >
-                    Next Round
-                  </UButton>
                 </div>
               </div>
             </div>
@@ -440,13 +443,68 @@ watch([shooters, rounds], () => {
   }
 }
 
-.shooter-row {
-  display: flex;
-  align-items: center;
+/* ─────── MOBILE-FIRST ROUND VIEW ─────── */
+.round-view {
+  padding: 0 8px;
+}
+
+.shooter-row-mobile {
+  border-radius: 16px;
   padding: 16px;
   margin-bottom: 16px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  border: 1px solid #e5e7eb;
+}
+
+.shooter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.shooter-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.live-score {
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: #059669; /* emerald-600 */
+}
+
+/* The magic: perfect 6-shot grid on every phone */
+.shots-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+.shot-btn {
+  width: 100% !important;
+  height: 64px !important;
+  border-radius: 16px !important;
+  font-size: 28px !important;
+  font-weight: 900 !important;
+  min-width: 0 !important; /* crucial for grid */
+}
+
+/* For 4-shot and 5-shot rounds – center them */
+.shots-grid:has(:nth-child(4):last-child) { grid-template-columns: repeat(4, 1fr); }
+.shots-grid:has(:nth-child(5):last-child) { grid-template-columns: repeat(5, 1fr); }
+
+/* Tablet+ – can go a bit bigger */
+@media (min-width: 640px) {
+  .shots-grid {
+    gap: 14px;
+    max-width: 500px;
+  }
+  .shot-btn {
+    height: 72px !important;
+  }
 }
 
 .shooter-name {
