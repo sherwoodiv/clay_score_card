@@ -142,7 +142,7 @@ watch([shooters, rounds], () => {
                 <UInput
                   v-model="newShooterName"
                   placeholder="Enter shooter name"
-                  class="flex-2/3"
+                  class="flex-2/3 min-h-1"
                 />
                 <UButton
                   :disabled="shooters.length >= 8 || !newShooterName.trim()"
@@ -171,7 +171,8 @@ watch([shooters, rounds], () => {
               <!-- Round Tabs -->
               <div class="round-tabs">
                 <UButton
-                  :variant="currentView === -1 ? 'solid':'subtle'"
+                    color="info"
+                  :variant="currentView === -1 ? 'solid':'soft'"
                   @click="currentView = -1"
                 >
                   Summary
@@ -225,7 +226,7 @@ watch([shooters, rounds], () => {
                   v-if="shooters.length > 1"
                   class="mt-8 text-center"
                 >
-                  <div class="inline-block bg-yellow-500 text-white px-6 py-3 rounded-full text-lg font-bold shadow-xl">
+                  <div class="inline-block bg-yellow-500 text-white px-6 py-3 rounded-full text-lg font-bold shadow-xl mb-3">
                     Winner: {{ shooters.reduce((a, b) => getTotalScore(a) >= getTotalScore(b) ? a : b).name }}
                     — {{ Math.max(...shooters.map(getTotalScore)) }}/50
                   </div>
@@ -319,16 +320,24 @@ watch([shooters, rounds], () => {
                     <UButton
                       v-for="(hit, i) in shooter.roundScores[currentView].shots"
                       :key="i"
-                      :color="hit ? 'primary' : 'error'"
+                      :color="hit ? 'primary' : 'warning'"
                       :variant="hit ? 'solid' : 'soft'"
                       size="xl"
                       class="shot-btn flex items-center justify-center"
                       square
                       @click="toggleShot(shooter, currentView, i)"
                     >
-                      <span class="text-3xl font-black leading-none">{{ hit ? 'O' : 'X' }}</span>
+                      <span class="text-3xl font-black leading-none">{{ hit ? 'X' : 'O' }}</span>
                     </UButton>
                   </div>
+                </div>
+                <div>
+                  <UButton
+                    v-if="currentView+1 < rounds.length"
+                    @click="currentView++"
+                  >
+                    Next Round
+                  </UButton>
                 </div>
               </div>
             </div>
@@ -419,10 +428,6 @@ watch([shooters, rounds], () => {
   margin-top: 20px;
 }
 
-.summary-table {
-  min-width: 600px;
-}
-
 .summary-table th {
   background: black;
   font-weight: 600;
@@ -434,10 +439,6 @@ watch([shooters, rounds], () => {
 }
 
 @media (max-width: 640px) {
-  .summary-table {
-    font-size: 0.9rem;
-  }
-
   .summary-table th, .summary-table td {
     padding: 8px 4px;
   }
@@ -452,7 +453,7 @@ watch([shooters, rounds], () => {
   border-radius: 16px;
   padding: 16px;
   margin-bottom: 16px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   border: 1px solid #e5e7eb;
 }
 
@@ -493,8 +494,13 @@ watch([shooters, rounds], () => {
 }
 
 /* For 4-shot and 5-shot rounds – center them */
-.shots-grid:has(:nth-child(4):last-child) { grid-template-columns: repeat(4, 1fr); }
-.shots-grid:has(:nth-child(5):last-child) { grid-template-columns: repeat(5, 1fr); }
+.shots-grid:has(:nth-child(4):last-child) {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.shots-grid:has(:nth-child(5):last-child) {
+  grid-template-columns: repeat(5, 1fr);
+}
 
 /* Tablet+ – can go a bit bigger */
 @media (min-width: 640px) {
@@ -502,6 +508,7 @@ watch([shooters, rounds], () => {
     gap: 14px;
     max-width: 500px;
   }
+
   .shot-btn {
     height: 72px !important;
   }
@@ -511,54 +518,5 @@ watch([shooters, rounds], () => {
   flex: 0 0 140px;
   font-weight: bold;
   font-size: 1.1em;
-}
-
-.shots {
-  flex: 1;
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.shot-toggle {
-  width: 56px;
-  height: 56px;
-  border: none;
-  border-radius: 50%;
-  font-size: 24px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.hit {
-  color: #22c55e;
-}
-
-.miss {
-  color: #ef4444;
-}
-
-.score {
-  flex: 0 0 120px;
-  text-align: right;
-  font-weight: bold;
-  font-size: 1.2em;
-}
-
-@media (max-width: 640px) {
-  .shooter-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .shots {
-    justify-content: center;
-  }
-
-  .score {
-    text-align: center;
-    margin-top: 10px;
-  }
 }
 </style>
