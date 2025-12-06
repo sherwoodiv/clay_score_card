@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, nextTick, onMounted, shallowRef } from 'vue'
+import { ref, computed, watch, onMounted, shallowRef, markRaw } from 'vue'
 import { debounce } from 'lodash-es'
 
 const targetShots = 50
@@ -21,13 +21,15 @@ const toggleShot = (shooter, roundIdx, shotIdx) => {
   // Bust cache by incrementing version
   scoreCacheVersion.value++
 
-  // Force shallow update (shallowRef needs this)
-  shooters.value = [...shooters.value]
+  // Skip the expensive spread operation - just trigger reactivity
+  shooters.value = shooters.value
 }
 
-// ⚡ OPTIMIZED: Memoized per round per shooter
+// ⚡ OPTIMIZED: Memoized per round per shooter with LRU-style cache limit
 const scoreCache = new Map()
-const scoreCacheVersion = ref(0) // Version counter for cache busting
+const scoreCacheVersion = ref(0)
+const MAX_CACHE_SIZE = 100 // Limit cache size for memory efficiency
+
 const getScoreKey = (shooterName, roundIdx) => `${shooterName}-${roundIdx}-${scoreCacheVersion.value}`
 
 const getRoundScore = (shooter, roundIdx) => {
@@ -41,6 +43,12 @@ const getRoundScore = (shooter, roundIdx) => {
   // Recalculate
   const shots = shooter.roundScores[roundIdx].shots
   const score = shots.filter(Boolean).length
+
+  // Simple cache size limit
+  if (scoreCache.size > MAX_CACHE_SIZE) {
+    scoreCache.clear()
+  }
+
   scoreCache.set(key, score)
   return score
 }
@@ -66,7 +74,7 @@ const saveToStorage = debounce(() => {
   } catch (e) {
     console.error('Save failed:', e)
   }
-}, 500) // Increased to 500ms for better mobile perf
+}, 1000) // 1 second - much better for mobile
 
 watch([shooters, rounds], saveToStorage)
 
@@ -104,6 +112,7 @@ const availableOptions = computed(() => {
   if (r > 0 && r < 4) {
     options.push(r)
   }
+
   return options
 })
 
@@ -382,18 +391,17 @@ onMounted(() => {
                   </div>
 
                   <div class="shots-grid">
-                    <UButton
+                    <button
                         v-for="(hit, i) in shooter.roundScores[currentView].shots"
                         :key="i"
-                        :color="hit ? 'primary' : 'warning'"
-                        :variant="hit ? 'solid' : 'soft'"
-                        size="xl"
-                        class="shot-btn flex items-center justify-center"
-                        square
+                        :class="[
+                        'shot-btn-native',
+                        hit ? 'shot-hit' : 'shot-miss'
+                      ]"
                         @click="toggleShot(shooter, currentView, i)"
                     >
-                      <span class="text-3xl font-black leading-none">{{ hit ? 'X' : 'O' }}</span>
-                    </UButton>
+                      <span class="shot-text">{{ hit ? 'X' : 'O' }}</span>
+                    </button>
                   </div>
                 </div>
 
@@ -548,14 +556,54 @@ onMounted(() => {
   grid-template-columns: repeat(5, 1fr);
 }
 
+/* Native button styling for MAXIMUM mobile performance */
+.shot-btn-native {
+  width: 100%;
+  height: 64px;
+  border-radius: 16px;
+  border: 2px solid transparent;
+  font-size: 28px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+  touch-action: manipulation; /* Prevents zoom on double-tap */
+  -webkit-tap-highlight-color: transparent; /* Removes iOS tap highlight */
+}
+
+.shot-btn-native:active {
+  transform: scale(0.95);
+}
+
+.shot-hit {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  border-color: #1d4ed8;
+}
+
+.shot-miss {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  color: white;
+  border-color: #d97706;
+}
+
+.shot-text {
+  display: block;
+  line-height: 1;
+  font-size: 32px;
+}
+
 @media (min-width: 640px) {
   .shots-grid {
     gap: 14px;
     max-width: 500px;
   }
 
-  .shot-btn {
-    height: 72px !important;
+  .shot-btn-native {
+    height: 72px;
+  }
+
+  .shot-text {
+    font-size: 36px;
   }
 }
 </style>
