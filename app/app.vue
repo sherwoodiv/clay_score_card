@@ -171,7 +171,7 @@ watch([shooters, rounds], () => {
               <!-- Round Tabs -->
               <div class="round-tabs">
                 <UButton
-                    color="info"
+                  color="info"
                   :variant="currentView === -1 ? 'solid':'soft'"
                   @click="currentView = -1"
                 >
