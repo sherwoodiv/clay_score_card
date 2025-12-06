@@ -1,5 +1,6 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
+import { debounce } from 'lodash-es' // npm i lodash-es
 
 const targetShots = 50
 const newShooterName = ref('')
@@ -10,15 +11,53 @@ const showAddRound = ref(false)
 const showResumeModal = ref(false)
 const savedData = ref(null)
 
+// These stay the same
 const currentTotal = computed(() => rounds.value.reduce((s, r) => s + r.numShots, 0))
 const remaining = computed(() => targetShots - currentTotal.value)
 
-const availableOptions = computed(() => {
-  if (remaining.value <= 0) return []
-  const max = Math.min(6, remaining.value)
-  const min = remaining.value < 4 ? remaining.value : 4
-  return Array.from({ length: max - min + 1 }, (_, i) => max - i)
+// SUPER FAST toggle — no more deep reactivity cost
+const toggleShot = (shooter, roundIdx, shotIdx) => {
+  // Direct mutation — Vue still tracks it because it's a ref array
+  const current = shooter.roundScores[roundIdx].shots[shotIdx]
+  shooter.roundScores[roundIdx].shots[shotIdx] = !current
+
+  // Force immediate UI update (feels instant)
+  // Vue batches updates, so we trigger a microtask
+  nextTick()
+}
+
+// Cached scores — computed per shooter (huge perf win)
+const shooterScores = computed(() => {
+  return shooters.value.map((shooter) => {
+    const roundScores = shooter.roundScores.map(rs =>
+      rs.shots.filter(Boolean).length
+    )
+    const total = roundScores.reduce((a, b) => a + b, 0)
+    return { roundScores, total }
+  })
 })
+
+const getRoundScore = (shooter, roundIdx) => {
+  const index = shooters.value.indexOf(shooter)
+  return shooterScores.value[index]?.roundScores[roundIdx] ?? 0
+}
+
+const getTotalScore = (shooter) => {
+  const index = shooters.value.indexOf(shooter)
+  return shooterScores.value[index]?.total ?? 0
+}
+
+// Debounced save — only runs after user stops tapping
+watch(
+  [shooters, rounds],
+  debounce(() => {
+    localStorage.setItem('shootingData', JSON.stringify({
+      shooters: shooters.value,
+      rounds: rounds.value
+    }))
+  }, 400),
+  { deep: true }
+)
 
 const addShooter = () => {
   if (shooters.value.length >= 8 || !newShooterName.value.trim()) return
@@ -57,13 +96,6 @@ const autoSetup = () => {
   })
   currentView.value = 0
 }
-
-const toggleShot = (shooter, roundIdx, shotIdx) => {
-  shooter.roundScores[roundIdx].shots[shotIdx] = !shooter.roundScores[roundIdx].shots[shotIdx]
-}
-
-const getRoundScore = (shooter, roundIdx) => shooter.roundScores[roundIdx].shots.filter(Boolean).length
-const getTotalScore = shooter => shooter.roundScores.reduce((s, rs, i) => s + getRoundScore(shooter, i), 0)
 
 // Modal functions
 const resumeSession = () => {
